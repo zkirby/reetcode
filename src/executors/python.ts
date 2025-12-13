@@ -58,26 +58,24 @@ export class PythonRunner implements Runner {
     if (hasCommas || hasTabs) {
       const separator = hasTabs ? "\\t" : ",";
       return `import pandas as pd
-      import io
+import io
       
-      # Dataset is pre-loaded in 'dataset' variable
-      # Uncomment to view: print(dataset[:200])
+# Dataset is pre-loaded in 'dataset' variable
+# Uncomment to view: print(dataset[:200])
       
-      # Load into pandas DataFrame
-      df = pd.read_csv(io.StringIO(dataset), sep='${separator}')
+# Load into pandas DataFrame
+df = pd.read_csv(io.StringIO(dataset), sep='${separator}')
       
-      print("Dataset shape:", df.shape)
-      print(df.head())
+print("Dataset shape:", df.shape)
+print(df.head())
       
-      # Your analysis code here
-      `;
+# Your analysis code here`;
     }
 
     return `# Dataset is pre-loaded in 'dataset' variable
-      # Uncomment to view: print(dataset[:200])
+# Uncomment to view: print(dataset[:200])
       
-      # Your analysis code here
-      `;
+# Your analysis code here`;
   }
 
   async *run(code: string) {

@@ -27,6 +27,8 @@ export interface EditorElements {
   codeInput: HTMLElement;
   output: HTMLElement;
   status: HTMLElement;
+  timer: HTMLElement;
+  timerText: HTMLElement;
   resizer: HTMLElement;
   replPanel: HTMLElement;
   updateResizerPosition: () => void;

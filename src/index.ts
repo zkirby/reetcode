@@ -29,6 +29,9 @@ const EXCLUDED_PAGE_PREFIXES = [
 
   injectStyles();
 
+  // Show loading screen
+  const loadingScreen = createLoadingScreen();
+
   // Create the split pane layout
   const elements = createSplitLayout();
   setupResizer(
@@ -43,7 +46,7 @@ const EXCLUDED_PAGE_PREFIXES = [
     // Setup editor
     await editor.init();
 
-    setupStartButton(editor);
+    setupStartButton(editor, loadingScreen);
 
     // Reset MathJax formatting
     if ((window as any).MathJax) {
@@ -62,6 +65,8 @@ const EXCLUDED_PAGE_PREFIXES = [
       }`,
       "error"
     );
+  } finally {
+    hideLoadingScreen(loadingScreen);
   }
 
   console.log("Rosalind LeetCode Style with Python REPL loaded!");
@@ -108,10 +113,19 @@ function createSplitLayout(): EditorElements {
           <option value="javascript">JavaScript ▼</option>
         </select>
       </div>
-      <span id="rosalind-repl-status" class="loading">
-        <span id="rosalind-repl-status-dot"></span>
-        <span id="rosalind-repl-status-text">Loading...</span>
-      </span>
+      <div id="rosalind-repl-header-right">
+        <span id="rosalind-timer" style="display: none;">
+          <svg id="rosalind-timer-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+          <span id="rosalind-timer-text">5:00</span>
+        </span>
+        <span id="rosalind-repl-status" class="loading">
+          <span id="rosalind-repl-status-dot"></span>
+          <span id="rosalind-repl-status-text">Loading...</span>
+        </span>
+      </div>
     </div>
     <div id="rosalind-repl-editor">
       <div id="rosalind-code-input"></div>
@@ -149,6 +163,8 @@ function createSplitLayout(): EditorElements {
     codeInput: $$.byId<HTMLElement>("rosalind-code-input"),
     output: $$.byId<HTMLElement>("rosalind-repl-output"),
     status: $$.byId<HTMLElement>("rosalind-repl-status"),
+    timer: $$.byId<HTMLElement>("rosalind-timer"),
+    timerText: $$.byId<HTMLElement>("rosalind-timer-text"),
     resizer,
     replPanel,
     updateResizerPosition,
@@ -246,7 +262,66 @@ function setupResizer(
   window.addEventListener("resize", updateResizerPosition);
 }
 
-function setupStartButton(editor: Editor): void {
+function createLoadingScreen(): HTMLElement {
+  const loadingScreen = $$.DIV({
+    id: "rosalind-loading-screen",
+    css: `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 10000;
+      transition: opacity 0.5s ease-out, visibility 0.5s ease-out;
+    `,
+  });
+
+  const spinner = $$.DIV({
+    css: `
+      width: 60px;
+      height: 60px;
+      border: 4px solid rgba(255, 255, 255, 0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: 24px;
+    `,
+  });
+
+  const text = $$.DIV({
+    content: "Loading Rosalind...",
+    css: `
+      color: white;
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      animation: pulse 2s ease-in-out infinite;
+    `,
+  });
+
+  loadingScreen.append(spinner);
+  loadingScreen.append(text);
+  $().append(loadingScreen);
+
+  return loadingScreen.el;
+}
+
+function hideLoadingScreen(loadingScreen: HTMLElement): void {
+  loadingScreen.style.opacity = "0";
+  loadingScreen.style.visibility = "hidden";
+  setTimeout(() => {
+    if (loadingScreen.parentNode) {
+      loadingScreen.parentNode.removeChild(loadingScreen);
+    }
+  }, 500);
+}
+
+function setupStartButton(editor: Editor, loadingScreen: HTMLElement): void {
   setTimeout(() => {
     const downloadLink = $().byQuery<HTMLAnchorElement>(
       "a#id_problem_dataset_link"

@@ -30,6 +30,8 @@ export class Editor {
     python: new PythonRunner(),
     javascript: new JavaScriptRunner(),
   };
+  private timerInterval: number | null = null;
+  private remainingSeconds: number = 300; // 5 minutes in seconds
 
   constructor(private elements: EditorElements) {}
 
@@ -173,6 +175,54 @@ export class Editor {
     const { runBtn, submitBtn } = this.elements;
     runBtn.disabled = false;
     submitBtn.disabled = false;
+
+    // Start the timer
+    this.startTimer();
+  }
+
+  /** Start the 5-minute countdown timer */
+  private startTimer() {
+    // Clear any existing timer
+    this.stopTimer();
+
+    // Reset to 5 minutes
+    this.remainingSeconds = 300;
+
+    // Show the timer
+    const { timer } = this.elements;
+    timer.style.display = "flex";
+
+    // Update the display immediately
+    this.updateTimerDisplay();
+
+    // Start the countdown
+    this.timerInterval = window.setInterval(() => {
+      this.remainingSeconds--;
+      this.updateTimerDisplay();
+
+      if (this.remainingSeconds <= 0) {
+        this.stopTimer();
+        this.addOutput("⏰ Time's up! Challenge completed.", "error");
+      }
+    }, 1000);
+  }
+
+  /** Stop and hide the timer */
+  private stopTimer() {
+    if (this.timerInterval !== null) {
+      clearInterval(this.timerInterval);
+      this.timerInterval = null;
+    }
+    const { timer } = this.elements;
+    timer.style.display = "none";
+  }
+
+  /** Update the timer display text */
+  private updateTimerDisplay() {
+    const { timerText } = this.elements;
+    const minutes = Math.floor(this.remainingSeconds / 60);
+    const seconds = this.remainingSeconds % 60;
+    timerText.textContent = `${minutes}:${seconds.toString().padStart(2, "0")}`;
   }
 
   /** reset the editor after a language change */

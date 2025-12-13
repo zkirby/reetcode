@@ -33,15 +33,13 @@ const data = lines.map(line => line.split('${separator}'));
 console.log('Dataset shape:', data.length, 'rows');
 console.log('First few rows:', data.slice(0, 5));
 
-// Your analysis code here
-`;
+// Your analysis code here`;
     }
 
     return `// Dataset is pre-loaded in 'dataset' variable
 // Uncomment to view: console.log(dataset.substring(0, 200))
 
-// Your analysis code here
-`;
+// Your analysis code here`;
   }
 
   async *run(code: string) {
