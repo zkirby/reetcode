@@ -169,6 +169,10 @@ export class Editor {
 
     this.content = this.runner!.getSkeleton();
     this.addOutput("✓ Dataset loaded! Ready to analyze.", "success");
+
+    const { runBtn, submitBtn } = this.elements;
+    runBtn.disabled = false;
+    submitBtn.disabled = false;
   }
 
   /** reset the editor after a language change */

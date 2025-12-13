@@ -119,7 +119,7 @@ function createSplitLayout(): EditorElements {
     <div id="rosalind-repl-controls">
       <button id="rosalind-run-btn" disabled>Run Code</button>
       <button id="rosalind-clear-btn">Clear Output</button>
-      <button id="rosalind-submit-btn">Submit Output</button>
+      <button id="rosalind-submit-btn" disabled>Submit Output</button>
     </div>
     <div id="rosalind-repl-output"></div>
   `,
