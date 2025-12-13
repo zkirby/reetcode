@@ -7,7 +7,7 @@ import type {
   WindowWithExtensions,
 } from "./types";
 import CSS_STYLES from "./styles.css";
-import { Body } from "./body";
+import { $ } from "./$";
 import DESC_SVG from "./desc-icon.svg";
 import SOLUTIONS_SVG from "./lab-icon.svg";
 import { DB } from "./db";
@@ -19,6 +19,7 @@ let editorView: any = null;
 let currentLanguage: Language = "python";
 let editorContainer: HTMLElement | null = null;
 let onRunCodeCallback: (() => void) | null = null;
+const Body = $();
 
 /**
  * Excluded page sub-paths that shouldn't show the REPL view.
@@ -36,255 +37,12 @@ function injectStyles(): void {
   document.head.appendChild(style);
 }
 
-function updateStatus(
-  statusElement: HTMLElement,
-  state: StatusState,
-  text: string
-): void {
-  statusElement.className = state;
-  const statusText = statusElement.querySelector("#rosalind-repl-status-text");
-  if (statusText) {
-    statusText.textContent = text;
-  }
-}
-
-function addOutput(
-  outputElement: HTMLElement,
-  text: string,
-  type: OutputType = ""
-): void {
-  const line = document.createElement("div");
-  line.className = "rosalind-output-line";
-
-  if (type === "error") {
-    line.classList.add("rosalind-output-error");
-  } else if (type === "success") {
-    line.classList.add("rosalind-output-success");
-  }
-
-  line.textContent = text;
-  outputElement.appendChild(line);
-  outputElement.scrollTop = outputElement.scrollHeight;
-}
-
-function getLastOutput(outputElement: HTMLElement): string {
-  const lines = Array.from(
-    outputElement.querySelectorAll(".rosalind-output-line")
-  );
-
-  // Find the last ">>> Running code..." marker
-  let startIndex = -1;
-  for (let i = lines.length - 1; i >= 0; i--) {
-    if (lines[i].textContent?.includes(">>> Running code...")) {
-      startIndex = i;
-      break;
-    }
-  }
-
-  if (startIndex === -1) {
-    return "";
-  }
-
-  // Collect lines between ">>> Running code..." and ">>> Done."
-  const outputLines: string[] = [];
-  for (let i = startIndex + 1; i < lines.length; i++) {
-    const text = lines[i].textContent || "";
-
-    // Stop at ">>> Done." marker
-    if (text.includes(">>> Done.")) {
-      break;
-    }
-
-    // Skip error lines and result lines
-    if (
-      !lines[i].classList.contains("rosalind-output-error") &&
-      !text.startsWith("Result:")
-    ) {
-      outputLines.push(text);
-    }
-  }
-
-  return outputLines.join("\n").trim();
-}
-
-function submitOutputToForm(output: string): void {
-  const form = document.getElementById("id_form_submission") as HTMLFormElement;
-  const fileInput = document.getElementById(
-    "id_output_file"
-  ) as HTMLInputElement;
-
-  if (!form || !fileInput) {
-    throw new Error("Submission form or file input not found");
-  }
-
-  // Create a File object from the output string
-  const blob = new Blob([output], { type: "text/plain" });
-  const file = new File([blob], "output.txt", { type: "text/plain" });
-
-  // Create a DataTransfer to set the file
-  const dataTransfer = new DataTransfer();
-  dataTransfer.items.add(file);
-  fileInput.files = dataTransfer.files;
-
-  // Submit the form
-  form.submit();
-}
-
-// ============================================================================
-// CodeMirror Editor
-// ============================================================================
-
-function createEditor(
-  container: HTMLElement,
-  onRunCode: () => void,
-  language: Language,
-  initialDoc?: string
-): any {
-  const win = window as WindowWithExtensions;
-  if (!win.CodeMirrorSetup) {
-    throw new Error("CodeMirror not loaded");
-  }
-
-  const {
-    EditorView,
-    basicSetup,
-    python,
-    javascript,
-    indentUnit,
-    keymap,
-    indentWithTab,
-  } = win.CodeMirrorSetup;
-
-  const languageExtension = language === "python" ? python() : javascript();
-  const defaultDocs = {
-    python: "# Click 'Start in REPL' to start the challenge...\n",
-    javascript: "// Click 'Start in REPL' to start the challenge...\n",
-  };
-
-  const runCodeKeymap = keymap.of([
-    indentWithTab,
-    {
-      key: "Ctrl-Enter",
-      mac: "Cmd-Enter",
-      run: () => {
-        onRunCode();
-        return true;
-      },
-    },
-  ]);
-
-  // Load saved code if available, otherwise use provided initialDoc or default
-  const savedCode = DB.get(DB.KEYS.CODE, "");
-  const docToUse = initialDoc || savedCode || defaultDocs[language];
-
-  // Create update listener to save code on changes
-  const saveOnUpdate = EditorView.updateListener.of((update: any) => {
-    if (update.docChanged) {
-      const code = update.state.doc.toString();
-      DB.save(DB.KEYS.CODE, code);
-    }
-  });
-
-  return new EditorView({
-    doc: docToUse,
-    extensions: [
-      basicSetup,
-      languageExtension,
-      indentUnit.of("    "),
-      runCodeKeymap,
-      saveOnUpdate,
-      EditorView.theme({
-        "&": {
-          height: "100%",
-          backgroundColor: "#1e1e1e",
-        },
-        ".cm-scroller": {
-          overflow: "auto",
-        },
-      }),
-    ],
-    parent: container,
-  });
-}
-
-function initializeCodeMirror(
-  container: HTMLElement,
-  onRunCode: () => void
-): void {
-  editorContainer = container;
-  onRunCodeCallback = onRunCode;
-  editorView = createEditor(container, onRunCode, currentLanguage);
-}
-
-function switchLanguage(language: Language): void {
-  if (!editorView || !editorContainer || !onRunCodeCallback) return;
-
-  // Save current content
-  const currentContent = editorView.state.doc.toString();
-
-  // Destroy old editor
-  editorView.destroy();
-
-  // Update language
-  currentLanguage = language;
-
-  // Save language preference
-  DB.save(DB.KEYS.LANGUAGE_PREFERENCE, language);
-
-  // Transfer dataset to new language environment if it exists
-  if (language === "python") {
-    const jsDataset = (window as any).dataset;
-    if (jsDataset && pyodide) {
-      pyodide.globals.set("dataset", jsDataset);
-    }
-  } else {
-    // JavaScript - dataset should already be in window scope
-    // No action needed
-  }
-
-  const shouldPreserveContent =
-    !currentContent.includes("Click 'Start in REPL'") &&
-    currentContent.trim() !== "";
-  const newDoc = shouldPreserveContent ? currentContent : undefined;
-
-  editorView = createEditor(
-    editorContainer,
-    onRunCodeCallback,
-    language,
-    newDoc
-  );
-}
-
-function getEditorContent(): string {
-  if (!editorView) {
-    throw new Error("Editor not initialized");
-  }
-  return editorView.state.doc.toString();
-}
-
-function setEditorContent(content: string): void {
-  if (!editorView) {
-    throw new Error("Editor not initialized");
-  }
-
-  editorView.dispatch({
-    changes: {
-      from: 0,
-      to: editorView.state.doc.length,
-      insert: content,
-    },
-  });
-}
-
 // ============================================================================
 // Pyodide/Python REPL
 // ============================================================================
 
 async function initializePyodide(elements: EditorElements): Promise<void> {
   try {
-    updateStatus(elements.status, "loading", "Loading script...");
-    // await loadPyodideScript();
-
     updateStatus(elements.status, "loading", "Initializing...");
     const win = window as WindowWithExtensions;
 
@@ -467,27 +225,26 @@ async function runJavaScriptCode(
 
 function createSplitLayout(): EditorElements {
   const rosalindFooter = Body.byQuery(".footer", true);
-  const bodyContent = Body.content;
 
-  const splitContainer = Body.DIV({ id: "rosalind-split-container" });
-  const problemSide = Body.DIV({ id: "rosalind-problem-side" });
-  const problemHeader = Body.DIV({ id: "rosalind-problem-header" });
+  const splitContainer = $.DIV({ id: "rosalind-split-container" });
+  const problemSide = $.DIV({ id: "rosalind-problem-side" });
+  const problemHeader = $.DIV({ id: "rosalind-problem-header" });
 
   buildSplitPaneHeader(problemHeader);
 
-  const mainContent = Body.DIV({
+  const mainContent = $.DIV({
     id: "rosalind-main-content",
-    content: bodyContent,
+    content: Body.content,
   });
 
-  const problemFooter = Body.DIV({ id: "rosalind-problem-footer" });
+  const problemFooter = $.DIV({ id: "rosalind-problem-footer" });
   problemFooter.appendChild(rosalindFooter);
 
   problemSide.appendChild(problemHeader);
   problemSide.appendChild(mainContent);
   problemSide.appendChild(problemFooter);
 
-  const replPanel = Body.DIV({
+  const replPanel = $.DIV({
     id: "rosalind-repl-panel",
     content: `
     <div id="rosalind-repl-header">
@@ -520,7 +277,7 @@ function createSplitLayout(): EditorElements {
 
   Body.DANGEROUSLY_set_content(splitContainer);
 
-  const resizer = Body.DIV({ id: "rosalind-resizer" });
+  const resizer = $.DIV({ id: "rosalind-resizer" });
   document.body.appendChild(resizer);
 
   const updateResizerPosition = () => {
@@ -532,15 +289,13 @@ function createSplitLayout(): EditorElements {
   updateResizerPosition();
 
   return {
-    runBtn: Body.byId<HTMLButtonElement>("rosalind-run-btn"),
-    clearBtn: Body.byId<HTMLButtonElement>("rosalind-clear-btn"),
-    submitBtn: Body.byId<HTMLButtonElement>("rosalind-submit-btn"),
-    languageSelector: Body.byId<HTMLSelectElement>(
-      "rosalind-language-selector"
-    ),
-    codeInput: Body.byId<HTMLElement>("rosalind-code-input"),
-    output: Body.byId<HTMLElement>("rosalind-repl-output"),
-    status: Body.byId<HTMLElement>("rosalind-repl-status"),
+    runBtn: $.byId<HTMLButtonElement>("rosalind-run-btn"),
+    clearBtn: $.byId<HTMLButtonElement>("rosalind-clear-btn"),
+    submitBtn: $.byId<HTMLButtonElement>("rosalind-submit-btn"),
+    languageSelector: $.byId<HTMLSelectElement>("rosalind-language-selector"),
+    codeInput: $.byId<HTMLElement>("rosalind-code-input"),
+    output: $.byId<HTMLElement>("rosalind-repl-output"),
+    status: $.byId<HTMLElement>("rosalind-repl-status"),
     resizer,
     replPanel,
     updateResizerPosition,
@@ -597,7 +352,7 @@ function setupResizer(
 }
 
 function buildSplitPaneHeader(el: HTMLDivElement) {
-  const desc = Body.DIV({
+  const desc = $.DIV({
     content: `${DESC_SVG} <div>Description</div>`,
     style: {
       fontWeight: "500",
@@ -607,7 +362,7 @@ function buildSplitPaneHeader(el: HTMLDivElement) {
       gap: "3px",
     },
   });
-  const solutions = Body.A({
+  const solutions = $.A({
     href: "/problems/subs/recent/",
     content: `${SOLUTIONS_SVG} <div>Solutions</div>`,
     style: {
@@ -618,13 +373,13 @@ function buildSplitPaneHeader(el: HTMLDivElement) {
     },
   });
 
-  const next = Body.byQuery("li.next > a");
-  const prev = Body.byQuery("li.previous > a");
+  const next = $.byQuery("li.next > a");
+  const prev = $.byQuery("li.previous > a");
 
-  const left = Body.DIV({
+  const left = $.DIV({
     classList: ["problem-header-div"],
   });
-  const right = Body.DIV({
+  const right = $.DIV({
     classList: ["problem-header-div"],
   });
 
@@ -644,7 +399,7 @@ function buildSplitPaneHeader(el: HTMLDivElement) {
 
 function setupStartButton(elements: EditorElements): void {
   setTimeout(() => {
-    const downloadLink = Body.byQuery<HTMLAnchorElement>(
+    const downloadLink = $.byQuery<HTMLAnchorElement>(
       "a#id_problem_dataset_link"
     );
     if (!downloadLink) return;
@@ -654,8 +409,8 @@ function setupStartButton(elements: EditorElements): void {
 
     const datasetUrl = downloadLink.href;
 
-    const secondTitleLine = Body.byQuery(".problem-properties");
-    const startButton = Body.BUTTON({
+    const secondTitleLine = $.byQuery(".problem-properties");
+    const startButton = $.BUTTON({
       content: "start ▶︎",
       css: `
         background-color: #46a546 !important;

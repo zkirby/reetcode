@@ -33,7 +33,7 @@ export interface EditorElements {
 }
 
 export type StatusState = "loading" | "ready" | "error";
-export type OutputType = "error" | "success" | "";
+export type OutputType = "error" | "success";
 
 export interface WindowWithExtensions extends Window {
   CodeMirrorSetup?: CodeMirrorSetup;
