@@ -29,9 +29,6 @@ const EXCLUDED_PAGE_PREFIXES = [
 
   injectStyles();
 
-  // Show loading screen
-  const loadingScreen = createLoadingScreen();
-
   // Create the split pane layout
   const elements = createSplitLayout();
   setupResizer(
@@ -46,7 +43,7 @@ const EXCLUDED_PAGE_PREFIXES = [
     // Setup editor
     await editor.init();
 
-    setupStartButton(editor, loadingScreen);
+    setupStartButton(editor);
 
     // Reset MathJax formatting
     if ((window as any).MathJax) {
@@ -65,8 +62,6 @@ const EXCLUDED_PAGE_PREFIXES = [
       }`,
       "error"
     );
-  } finally {
-    hideLoadingScreen(loadingScreen);
   }
 
   console.log("Rosalind LeetCode Style with Python REPL loaded!");
@@ -262,66 +257,7 @@ function setupResizer(
   window.addEventListener("resize", updateResizerPosition);
 }
 
-function createLoadingScreen(): HTMLElement {
-  const loadingScreen = $$.DIV({
-    id: "rosalind-loading-screen",
-    css: `
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      z-index: 10000;
-      transition: opacity 0.5s ease-out, visibility 0.5s ease-out;
-    `,
-  });
-
-  const spinner = $$.DIV({
-    css: `
-      width: 60px;
-      height: 60px;
-      border: 4px solid rgba(255, 255, 255, 0.3);
-      border-top-color: white;
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-      margin-bottom: 24px;
-    `,
-  });
-
-  const text = $$.DIV({
-    content: "Loading Rosalind...",
-    css: `
-      color: white;
-      font-size: 18px;
-      font-weight: 600;
-      letter-spacing: 1px;
-      animation: pulse 2s ease-in-out infinite;
-    `,
-  });
-
-  loadingScreen.append(spinner);
-  loadingScreen.append(text);
-  $().append(loadingScreen);
-
-  return loadingScreen.el;
-}
-
-function hideLoadingScreen(loadingScreen: HTMLElement): void {
-  loadingScreen.style.opacity = "0";
-  loadingScreen.style.visibility = "hidden";
-  setTimeout(() => {
-    if (loadingScreen.parentNode) {
-      loadingScreen.parentNode.removeChild(loadingScreen);
-    }
-  }, 500);
-}
-
-function setupStartButton(editor: Editor, loadingScreen: HTMLElement): void {
+function setupStartButton(editor: Editor): void {
   setTimeout(() => {
     const downloadLink = $().byQuery<HTMLAnchorElement>(
       "a#id_problem_dataset_link"
@@ -330,8 +266,17 @@ function setupStartButton(editor: Editor, loadingScreen: HTMLElement): void {
 
     // Hide download link once found
     downloadLink.style.display = "none";
-
     const datasetUrl = downloadLink.href;
+    // prevent actual downloads, since we already have the link.
+    downloadLink.href = "";
+    document.addEventListener("click", (e) => {
+      const a = (e.target as HTMLElement).closest("a");
+      if (a == downloadLink) {
+        console.log("blocked usual download flow");
+        e.preventDefault();
+      }
+      console.log(a);
+    });
 
     const secondTitleLine = $($().byQuery(".problem-properties"));
     const startButton = $$.BUTTON({
@@ -370,6 +315,7 @@ function setupStartButton(editor: Editor, loadingScreen: HTMLElement): void {
       e.stopPropagation();
 
       try {
+        downloadLink.click();
         startButton.disabled = true;
         startButton.textContent = "Loading...";
         startButton.style.backgroundColor = "#6b7280";
@@ -377,11 +323,9 @@ function setupStartButton(editor: Editor, loadingScreen: HTMLElement): void {
         const response = await fetch(datasetUrl);
         const datasetText = await response.text();
 
-        editor.start(datasetText);
+        editor.start(datasetText, startButton);
 
-        startButton.textContent = "Reload Dataset";
-        startButton.style.backgroundColor = "#10b981";
-        startButton.disabled = false;
+        startButton.style.opacity = "0.7";
       } catch (error) {
         editor.addOutput(
           `Error loading dataset: ${
@@ -389,7 +333,7 @@ function setupStartButton(editor: Editor, loadingScreen: HTMLElement): void {
           }`,
           "error"
         );
-        startButton.textContent = "Start in REPL";
+        startButton.textContent = "start ▶︎";
         startButton.style.backgroundColor = "#10b981";
         startButton.disabled = false;
       }

@@ -1,12 +1,12 @@
-import typescript from '@rollup/plugin-typescript';
-import { nodeResolve } from '@rollup/plugin-node-resolve';
-import { string } from 'rollup-plugin-string';
+import typescript from "@rollup/plugin-typescript";
+import { nodeResolve } from "@rollup/plugin-node-resolve";
+import { string } from "rollup-plugin-string";
 
 export default {
-  input: 'src/index.ts',
+  input: "src/index.ts",
   output: {
-    file: 'dist/rosalind-leetcode-style.user.js',
-    format: 'iife',
+    file: "dist/rosalind-leetcode-style.user.js",
+    format: "iife",
     banner: `// ==UserScript==
 // @name         Rosalind LeetCode Style with Python REPL
 // @namespace    http://tampermonkey.net/
@@ -16,17 +16,17 @@ export default {
 // @match        https://rosalind.info/problems/*
 // @match        https://rosalind.info/problems
 // @grant        none
-// ==/UserScript==`
+// ==/UserScript==`,
   },
   plugins: [
     string({
-      include: ['**/*.css', '**/*.svg']
+      include: ["**/*.css", "**/*.svg"],
     }),
     nodeResolve(),
     typescript({
-      tsconfig: './tsconfig.json',
+      tsconfig: "./tsconfig.json",
       sourceMap: false,
-      inlineSources: false
-    })
-  ]
+      inlineSources: false,
+    }),
+  ],
 };

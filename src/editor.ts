@@ -164,7 +164,7 @@ export class Editor {
   }
 
   /** Start the problem in the editor */
-  async start(dataset: string) {
+  async start(dataset: string, btn: HTMLButtonElement) {
     this.dataset = dataset;
 
     await this.initRunner();
@@ -177,18 +177,17 @@ export class Editor {
     submitBtn.disabled = false;
 
     // Start the timer
-    this.startTimer();
+    this.startTimer(btn);
   }
 
   /** Start the 5-minute countdown timer */
-  private startTimer() {
+  private startTimer(btn: HTMLButtonElement) {
     // Clear any existing timer
     this.stopTimer();
 
     // Reset to 5 minutes
     this.remainingSeconds = 300;
 
-    // Show the timer
     const { timer } = this.elements;
     timer.style.display = "flex";
 
@@ -202,7 +201,9 @@ export class Editor {
 
       if (this.remainingSeconds <= 0) {
         this.stopTimer();
-        this.addOutput("⏰ Time's up! Challenge completed.", "error");
+        this.addOutput("⏰ Time's up! Try again.", "error");
+        btn.disabled = false;
+        btn.style.opacity = "1";
       }
     }, 1000);
   }
