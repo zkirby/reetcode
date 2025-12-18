@@ -18,7 +18,8 @@ export class DB {
     return window.location.pathname;
   }
 
-  static save(key: keyof typeof DB.KEYS, code: string) {
+  static save(key: `${keyof typeof DB.KEYS}${string}`, code: string): void;
+  static save(key: keyof typeof DB.KEYS, code: string): void {
     try {
       localStorage.setItem(DB.key(key), code);
     } catch (e) {
