@@ -178,6 +178,22 @@ function createSplitLayout(): EditorElements {
   problemSide.append(mainContent);
   problemSide.append(problemFooter);
 
+  // Switch MathJax to SVG rendering to avoid layout issues
+  if (typeof (window as any).MathJax !== "undefined") {
+    const MathJax = (window as any).MathJax;
+    if (MathJax.Hub) {
+      MathJax.Hub.Config({
+        SVG: { linebreaks: { automatic: true } },
+        "SVG-Math": { linebreaks: { automatic: true } },
+      });
+
+      MathJax.Hub.Queue(
+        ["setRenderer", MathJax.Hub, "SVG"],
+        ["Rerender", MathJax.Hub]
+      );
+    }
+  }
+
   const replPanel = $$.DIV({
     id: "rosalind-repl-panel",
     content: `
