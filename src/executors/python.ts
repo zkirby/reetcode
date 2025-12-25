@@ -118,7 +118,7 @@ sys.stderr = io.StringIO()
 
       if (stdout) {
         yield {
-          text: `Result: ${stdout}`,
+          text: `${stdout}`,
           type: null,
         };
       }

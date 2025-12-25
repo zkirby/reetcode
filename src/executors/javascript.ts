@@ -87,14 +87,16 @@ console.log('First few rows:', data.slice(0, 5));
       };
 
       try {
-        // Use AsyncFunction to support await
         const AsyncFunction = Object.getPrototypeOf(
           async function () {}
         ).constructor;
         // Make dataset available in function scope
-        const dataset = (window as any).dataset;
-        const fn = new AsyncFunction("dataset", code);
-        const result = await fn(dataset);
+        const datasetValue = (window as any).dataset;
+        // Prepend code to declare dataset as a const variable
+        // This ensures dataset is available as a top-level variable in the code
+        const wrappedCode = `const dataset = datasetParam;\n${code}`;
+        const fn = new AsyncFunction("datasetParam", wrappedCode);
+        const result = await fn(datasetValue);
 
         // Display console output
         if (logs.length > 0) {
