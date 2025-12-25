@@ -30,7 +30,6 @@ const EXCLUDED_PAGE_PREFIXES = [
   injectStyles();
   const loadingOverlay = createLoadingOverlay({
     title: "Loading…",
-    subtitle: "Preparing the start button",
   });
 
   // Create the split pane layout
@@ -69,7 +68,7 @@ function injectStyles(): void {
   document.head.appendChild(style);
 }
 
-function createLoadingOverlay(opts: { title?: string; subtitle?: string }): {
+function createLoadingOverlay(opts: { title?: string }): {
   hide: () => void;
 } {
   const overlay = $$.DIV({
@@ -122,18 +121,8 @@ function createLoadingOverlay(opts: { title?: string; subtitle?: string }): {
     `,
   });
 
-  const subtitleText = opts.subtitle ?? "";
-  const subtitle = $$.DIV({
-    content: subtitleText,
-    css: `
-      font-size: 12px;
-      color: rgba(226, 232, 240, 0.85);
-    `,
-  });
-
   card.append(spinner);
   card.append(title);
-  if (subtitleText) card.append(subtitle);
   overlay.append(card);
 
   const style = document.createElement("style");

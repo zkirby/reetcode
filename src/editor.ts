@@ -169,7 +169,7 @@ export class Editor {
     this.dataset = dataset;
     this.started = true;
 
-    await this.initRunner();
+    await this.reset();
 
     this.content = this.runner!.getSkeleton();
     this.addOutput("✓ Dataset loaded! Ready to analyze.", "success");
@@ -392,6 +392,8 @@ export class Editor {
           indentUnit.of("    "),
           runCodeKeymap,
           saveOnUpdate,
+          // Make editor editable only if started
+          EditorView.editable.of(this.started),
           EditorView.theme({
             "&": {
               height: "100%",
