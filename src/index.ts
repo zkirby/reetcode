@@ -43,7 +43,6 @@ const EXCLUDED_PAGE_PREFIXES = [
   const editor = new Editor(elements);
 
   try {
-    // Setup editor
     await editor.init();
 
     setupStartButton(editor, { onMounted: () => loadingOverlay.hide() });
@@ -368,11 +367,11 @@ function setupStartButton(
       return;
     }
 
-    // Hide download link once found
     downloadLink.style.display = "none";
     const datasetUrl = downloadLink.href;
 
-    // Hide the time limit as well
+    DB.save(["DATASET_URL"], datasetUrl);
+
     $().hide(".problem-timelimit");
 
     const secondTitleLine = $(propertiesEl);
@@ -395,7 +394,6 @@ function setupStartButton(
     }).el;
     secondTitleLine.append(startButton);
 
-    // Mark "mounted" once the button is actually in the DOM.
     opts?.onMounted?.();
 
     startButton.addEventListener("mouseenter", () => {
@@ -410,10 +408,7 @@ function setupStartButton(
       startButton.style.boxShadow = "0 2px 4px rgba(16, 185, 129, 0.2)";
     });
 
-    startButton.addEventListener("click", async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-
+    const onStart = async () => {
       try {
         startButton.disabled = true;
         startButton.textContent = "Loading...";
@@ -436,7 +431,25 @@ function setupStartButton(
         startButton.style.backgroundColor = "#10b981";
         startButton.disabled = false;
       }
+    };
+
+    startButton.addEventListener("click", async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      onStart();
     });
+
+    const startTimestamp = DB.get<number>(["START_TIMESTAMP"]);
+    const fiveMinutesInMs = 5 * 60 * 1000;
+    const now = Date.now();
+    if (startTimestamp) {
+      if (now - startTimestamp < fiveMinutesInMs) {
+        onStart();
+      } else {
+        DB.save(["START_TIMESTAMP"], null);
+      }
+    }
   };
 
   window.setTimeout(tick, 0);

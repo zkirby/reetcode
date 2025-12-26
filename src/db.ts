@@ -1,6 +1,8 @@
 const TopLevelKeys = {
   CODE: "CODE",
   LANGUAGE_PREFERENCE: "LANGUAGE_PREFERENCE",
+  START_TIMESTAMP: "START_TIMESTAMP",
+  DATASET_URL: "DATASET_URL",
 } as const;
 
 type Key = [keyof typeof TopLevelKeys, ...string[]];

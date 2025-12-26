@@ -183,8 +183,21 @@ export class Editor {
     // Clear any existing timer
     this.stopTimer();
 
-    // Reset to 5 minutes
-    this.remainingSeconds = 300;
+    // Check if there's an active timestamp saved to the DB
+    const startTimestamp = DB.get<number>(["START_TIMESTAMP"]);
+    const fiveMinutesInMs = 5 * 60 * 1000;
+    const now = Date.now();
+
+    if (startTimestamp && now - startTimestamp < fiveMinutesInMs) {
+      const elapsedMs = now - startTimestamp;
+      const remainingMs = fiveMinutesInMs - elapsedMs;
+      this.remainingSeconds = Math.max(0, Math.floor(remainingMs / 1000));
+    } else {
+      this.remainingSeconds = 300;
+      if (!startTimestamp || now - startTimestamp >= fiveMinutesInMs) {
+        DB.save(["START_TIMESTAMP"], now);
+      }
+    }
 
     const { timer } = this.elements;
     timer.style.display = "flex";
@@ -202,6 +215,8 @@ export class Editor {
         this.addOutput("⏰ Time's up! Try again.", "error");
         btn.disabled = false;
         btn.style.opacity = "1";
+        // Clear the timestamp when time expires
+        DB.save(["START_TIMESTAMP"], null);
       }
     }, 1000);
   }
