@@ -408,38 +408,48 @@ function setupStartButton(
     $().hide(".problem-timelimit");
 
     const secondTitleLine = $(propertiesEl);
+
+    // Check if problem is already successful
+    const successElement = document.querySelector("span.label.label-success");
+    const isSuccessful =
+      successElement && successElement.textContent?.includes("Congratulations");
+
     const startButton = $$.BUTTON({
-      content: "start ▶︎",
+      content: isSuccessful ? "✓ Solved" : "start ▶︎",
       css: `
-        background-color: #46a546 !important;
+        background-color: ${isSuccessful ? "#6b7280" : "#46a546"} !important;
         color: white !important;
         border: none !important;
         border-radius: 8px !important;
         padding: 5px 10px !important;
         font-weight: 600 !important;
         font-size: 14px;
-        cursor: pointer !important;
+        cursor: ${isSuccessful ? "not-allowed" : "pointer"} !important;
         transition: all 0.2s ease !important;
         box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2) !important;
         margin-left: auto !important;
+        opacity: ${isSuccessful ? "0.7" : "1"} !important;
       `,
       classList: ["rosalind-start-btn"],
     }).el;
+    startButton.disabled = isSuccessful || false;
     secondTitleLine.append(startButton);
 
     opts?.onMounted?.();
 
-    startButton.addEventListener("mouseenter", () => {
-      startButton.style.backgroundColor = "#059669 !important";
-      startButton.style.transform = "translateY(-1px)";
-      startButton.style.boxShadow = "0 4px 8px rgba(16, 185, 129, 0.3)";
-    });
+    if (!isSuccessful) {
+      startButton.addEventListener("mouseenter", () => {
+        startButton.style.backgroundColor = "#059669 !important";
+        startButton.style.transform = "translateY(-1px)";
+        startButton.style.boxShadow = "0 4px 8px rgba(16, 185, 129, 0.3)";
+      });
 
-    startButton.addEventListener("mouseleave", () => {
-      startButton.style.backgroundColor = "#46a546 !important";
-      startButton.style.transform = "translateY(0)";
-      startButton.style.boxShadow = "0 2px 4px rgba(16, 185, 129, 0.2)";
-    });
+      startButton.addEventListener("mouseleave", () => {
+        startButton.style.backgroundColor = "#46a546 !important";
+        startButton.style.transform = "translateY(0)";
+        startButton.style.boxShadow = "0 2px 4px rgba(16, 185, 129, 0.2)";
+      });
+    }
 
     const onStart = async () => {
       try {
@@ -472,14 +482,17 @@ function setupStartButton(
       onStart();
     });
 
-    const startTimestamp = DB.get<number>(["START_TIMESTAMP"]);
-    const fiveMinutesInMs = 5 * 60 * 1000;
-    const now = Date.now();
-    if (startTimestamp) {
-      if (now - startTimestamp < fiveMinutesInMs) {
-        onStart();
-      } else {
-        DB.save(["START_TIMESTAMP"], null);
+    // Only auto-start if not successful
+    if (!isSuccessful) {
+      const startTimestamp = DB.get<number>(["START_TIMESTAMP"]);
+      const fiveMinutesInMs = 5 * 60 * 1000;
+      const now = Date.now();
+      if (startTimestamp) {
+        if (now - startTimestamp < fiveMinutesInMs) {
+          onStart();
+        } else {
+          DB.save(["START_TIMESTAMP"], null);
+        }
       }
     }
   };

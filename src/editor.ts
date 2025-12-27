@@ -33,11 +33,15 @@ export class Editor {
   private loadingOverlay: HTMLElement | null = null;
   private submitCooldownInterval: number | null = null;
   private readonly SUBMIT_COOLDOWN_MS = 50 * 1000; // 50 seconds
+  private isSuccessful: boolean = false;
 
   constructor(private elements: EditorElements) {}
 
   async init(): Promise<void> {
     try {
+      // Check if problem is already successful
+      this.checkForSuccess();
+
       // Setup CodeMirror
       await new Promise((resolve, reject) => {
         const script = document.createElement("script");
@@ -80,9 +84,11 @@ export class Editor {
       clearBtn.addEventListener("click", bclear);
       submitBtn.addEventListener("click", this.submit.bind(this));
 
-      // Initialize submit cooldown check
-      this.updateSubmitButtonState();
-      this.startSubmitCooldownCheck();
+      // Initialize submit cooldown check (only if not already successful)
+      if (!this.isSuccessful) {
+        this.updateSubmitButtonState();
+        this.startSubmitCooldownCheck();
+      }
 
       // Hotkeys
       const keymap: Record<string, () => void> = {
@@ -97,6 +103,17 @@ export class Editor {
           e.preventDefault();
         }
       });
+
+      // If successful, handle success state
+      if (this.isSuccessful) {
+        // Mark as started so editor shows code instead of placeholder
+        this.started = true;
+        // Don't load dataset for already solved problems
+        // Handle success (non-blocking)
+        this.handleSuccess().catch((error) => {
+          console.error("Error handling success state:", error);
+        });
+      }
     } catch (e) {
       console.error(e);
       this.status = "error";
@@ -190,7 +207,7 @@ export class Editor {
 
     await this.reset();
 
-    this.addOutput("✓ Dataset loaded! Ready to analyze.", "success");
+    this.addOutput("✓ Dataset loaded! Ready to analyze.", null);
 
     const { runBtn } = this.elements;
     runBtn.disabled = false;
@@ -388,11 +405,11 @@ export class Editor {
 
       // If started, prefer (1) saved code for that language, otherwise (2) skeleton for that language.
       // If not started, show the default placeholder.
-      const savedCode = DB.get(["CODE", this.language]);
+      const savedCode = DB.get<string>(["CODE", this.language]);
 
-      // Create update listener to save code on changes
+      // Create update listener to save code on changes (only if not successful)
       const saveOnUpdate = EditorView.updateListener.of((update: any) => {
-        if (update.docChanged) {
+        if (update.docChanged && !this.isSuccessful) {
           const code = update.state.doc.toString();
           DB.save(["CODE", this.language], code);
         }
@@ -402,10 +419,24 @@ export class Editor {
       await this.initRunner();
       this.hideLoadingOverlay();
 
-      const docToUse =
-        this.started && this.runner.initialized
-          ? savedCode || this.runner.getSkeleton()
-          : defaultDocs[this.language];
+      // Determine what document to show
+      let docToUse: string;
+      if (this.isSuccessful) {
+        // If successful, only show saved code if it exists, otherwise show default placeholder
+        docToUse =
+          savedCode && typeof savedCode === "string"
+            ? savedCode
+            : defaultDocs[this.language];
+      } else if (this.started && this.runner.initialized) {
+        // If started normally, prefer saved code, otherwise use skeleton
+        docToUse =
+          savedCode && typeof savedCode === "string"
+            ? savedCode
+            : this.runner.getSkeleton();
+      } else {
+        // Not started, show default placeholder
+        docToUse = defaultDocs[this.language];
+      }
 
       // Reset the view
       this.view = new EditorView({
@@ -415,8 +446,8 @@ export class Editor {
           indentUnit.of("    "),
           basicSetup,
           saveOnUpdate,
-          // Make editor editable only if started
-          EditorView.editable.of(this.started),
+          // Make editor editable only if started and not successful
+          EditorView.editable.of(this.started && !this.isSuccessful),
           EditorView.theme({
             "&": {
               height: "100%",
@@ -531,6 +562,12 @@ export class Editor {
   /** Update the submit button state based on cooldown */
   private updateSubmitButtonState(): void {
     const { submitBtn } = this.elements;
+
+    // If problem is already successful, button should be disabled (handled in handleSuccess)
+    if (this.isSuccessful) {
+      return;
+    }
+
     const canSubmit = this.canSubmit();
     const remainingSeconds = this.getRemainingCooldownSeconds();
 
@@ -606,7 +643,7 @@ export class Editor {
 
       // Submit the form
       form.submit();
-      this.addOutput("✓ Output submitted successfully!", "success");
+      this.addOutput("✓ Output submitted successfully!", null);
     } catch (error) {
       this.addOutput(
         `Failed to submit: ${
@@ -615,5 +652,48 @@ export class Editor {
         "error"
       );
     }
+  }
+
+  /** Check if the problem has been successfully solved */
+  checkForSuccess(): boolean {
+    const successElement = document.querySelector("span.label.label-success");
+    if (
+      successElement &&
+      successElement.textContent?.includes("Congratulations")
+    ) {
+      this.isSuccessful = true;
+      return true;
+    }
+    this.isSuccessful = false;
+    return false;
+  }
+
+  /** Handle the success state - clear timers, make editor read-only, show saved code */
+  async handleSuccess(): Promise<void> {
+    // Clear all timers
+    this.stopTimer();
+    this.stopSubmitCooldownCheck();
+
+    // Clear submit cooldown timestamp since problem is solved
+    DB.save(["LAST_SUBMIT_TIMESTAMP"], null);
+
+    // Disable all buttons
+    const { runBtn, submitBtn, clearBtn, languageSelector } = this.elements;
+    runBtn.disabled = true;
+    submitBtn.disabled = true;
+    clearBtn.disabled = true;
+    languageSelector.disabled = true;
+
+    // Load and display the submitted code if available
+    const savedCode = DB.get<string>(["CODE", this.language]);
+    if (this.view) {
+      await this.reset();
+    }
+
+    // Show solved message in output with trophy emoji
+    const message = savedCode
+      ? "🏆 Problem solved! The editor is in read-only mode."
+      : "🏆 Problem solved!";
+    this.addOutput(message, "success");
   }
 }

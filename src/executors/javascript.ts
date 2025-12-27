@@ -10,6 +10,73 @@ export class JavaScriptRunner implements Runner {
 
   async init(dataset: string) {
     (window as any).dataset = dataset;
+    // DNA codon table
+    (window as any).codonTable = {
+      TTT: "F",
+      TTC: "F",
+      TTA: "L",
+      TTG: "L",
+      CTT: "L",
+      CTC: "L",
+      CTA: "L",
+      CTG: "L",
+      ATT: "I",
+      ATC: "I",
+      ATA: "I",
+      ATG: "M",
+      GTT: "V",
+      GTC: "V",
+      GTA: "V",
+      GTG: "V",
+      TCT: "S",
+      TCC: "S",
+      TCA: "S",
+      TCG: "S",
+      CCT: "P",
+      CCC: "P",
+      CCA: "P",
+      CCG: "P",
+      ACT: "T",
+      ACC: "T",
+      ACA: "T",
+      ACG: "T",
+      GCT: "A",
+      GCC: "A",
+      GCA: "A",
+      GCG: "A",
+      TAT: "Y",
+      TAC: "Y",
+      TAA: "Stop",
+      TAG: "Stop",
+      CAT: "H",
+      CAC: "H",
+      CAA: "Q",
+      CAG: "Q",
+      AAT: "N",
+      AAC: "N",
+      AAA: "K",
+      AAG: "K",
+      GAT: "D",
+      GAC: "D",
+      GAA: "E",
+      GAG: "E",
+      TGT: "C",
+      TGC: "C",
+      TGA: "Stop",
+      TGG: "W",
+      CGT: "R",
+      CGC: "R",
+      CGA: "R",
+      CGG: "R",
+      AGT: "S",
+      AGC: "S",
+      AGA: "R",
+      AGG: "R",
+      GGT: "G",
+      GGC: "G",
+      GGA: "G",
+      GGG: "G",
+    };
     // JavaScript runs natively in the browser, no external dependencies needed
     this.initialized = true;
   }
@@ -82,20 +149,25 @@ console.log('First few rows:', data.slice(0, 5));
 
       yield {
         text: ">>> Running code...",
-        type: "success" as const,
+        type: null,
       };
 
       try {
         const AsyncFunction = Object.getPrototypeOf(
           async function () {}
         ).constructor;
-        // Make dataset available in function scope
+        // Make dataset and codonTable available in function scope
         const datasetValue = (window as any).dataset;
-        // Prepend code to declare dataset as a const variable
-        // This ensures dataset is available as a top-level variable in the code
-        const wrappedCode = `const dataset = datasetParam;\n${code}`;
-        const fn = new AsyncFunction("datasetParam", wrappedCode);
-        const result = await fn(datasetValue);
+        const codonTableValue = (window as any).codonTable;
+        // Prepend code to declare dataset and codonTable as const variables
+        // This ensures they are available as top-level variables in the code
+        const wrappedCode = `const dataset = datasetParam;\nconst codonTable = codonTableParam;\n${code}`;
+        const fn = new AsyncFunction(
+          "datasetParam",
+          "codonTableParam",
+          wrappedCode
+        );
+        const result = await fn(datasetValue, codonTableValue);
 
         // Display console output
         if (logs.length > 0) {
@@ -133,7 +205,7 @@ console.log('First few rows:', data.slice(0, 5));
 
         yield {
           text: ">>> Done.",
-          type: "success" as const,
+          type: null,
         };
       } catch (error) {
         yield {

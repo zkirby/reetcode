@@ -448,7 +448,8 @@ small.hide-on-print,
 }
 
 .rosalind-output-success {
-  color: #262626;
+  color: #10b981;
+  font-weight: 600;
 }
 
 /* Navigation bar */
