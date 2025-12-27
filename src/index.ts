@@ -433,8 +433,6 @@ function setupStartButton(
     startButton.disabled = isSuccessful || false;
     secondTitleLine.append(startButton);
 
-    opts?.onMounted?.();
-
     if (!isSuccessful) {
       startButton.addEventListener("mouseenter", () => {
         startButton.style.backgroundColor = "#059669 !important";
@@ -497,6 +495,8 @@ function setupStartButton(
         }
       }
     }
+
+    opts?.onMounted?.();
   };
 
   window.setTimeout(tick, 0);

@@ -245,7 +245,7 @@ export class Editor {
       }
     }
 
-    const { timer } = this.elements;
+    const { timer, submitBtn, runBtn } = this.elements;
     timer.style.display = "flex";
 
     this.updateTimerDisplay();
@@ -256,10 +256,16 @@ export class Editor {
 
       if (this.remainingSeconds <= 0) {
         this.stopTimer();
-        this.addOutput("⏰ Time's up! Try again.", "error");
+        this.addOutput(
+          "⏰ Time's up! Please 'start ▶︎' to try again.",
+          "error"
+        );
         btn.disabled = false;
         btn.style.opacity = "1";
         btn.style.backgroundColor = "#10b981";
+
+        submitBtn.disabled = true;
+        runBtn.disabled = true;
 
         // Clear the timestamp when time expires
         DB.save(["START_TIMESTAMP"], null);
@@ -564,9 +570,11 @@ export class Editor {
       this.stopSubmitCooldownCheck();
     } else {
       submitBtn.disabled = true;
-      submitBtn.textContent = "Submit (Wait 50s)";
+      submitBtn.textContent = "Submit (Blocked)";
       runBtn.disabled = true;
-      this.addOutput("Please wait 50s before submitting again.");
+      this.btn.disabled = true;
+      this.clear();
+      this.addOutput("Please wait before re-submitting again.");
     }
   }
 
