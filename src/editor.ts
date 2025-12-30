@@ -1,8 +1,8 @@
 import { $, $$ } from "./$";
 import { DB } from "./db";
-import { JavaScriptRunner } from "./executors/javascript";
-import { PythonRunner } from "./executors/python";
-import { Runner } from "./executors/runner";
+import { JavaScriptRunner } from "./runners/javascript";
+import { PythonRunner } from "./runners/python";
+import { Runner } from "./runners/runner";
 import {
   EditorElements,
   Language,
@@ -40,9 +40,6 @@ export class Editor {
 
   async init(): Promise<void> {
     try {
-      // Check if problem is already successful
-      this.checkForSuccess();
-
       // Setup CodeMirror
       await new Promise((resolve, reject) => {
         const script = document.createElement("script");
@@ -142,10 +139,7 @@ export class Editor {
   }
 
   set language(language: Language) {
-    // Update language
     DB.save(["LANGUAGE_PREFERENCE"], language);
-
-    // Reset the editor
     this.reset();
   }
 
@@ -539,15 +533,6 @@ export class Editor {
     return outputLines.join("\n").trim();
   }
 
-  /** Check if submission is allowed by looking for the "Please wait" element */
-  public canSubmit(): boolean {
-    const pleaseWaitElement = $().byQuery(".problem-timewait");
-    if (pleaseWaitElement && pleaseWaitElement.style.display !== "none") {
-      return false;
-    }
-    return true;
-  }
-
   /** Update the submit button state based on presence of "Please wait" element */
   private async updateSubmitButtonState(): Promise<void> {
     const { submitBtn, runBtn } = this.elements;
@@ -643,20 +628,6 @@ export class Editor {
         "error"
       );
     }
-  }
-
-  /** Check if the problem has been successfully solved */
-  checkForSuccess(): boolean {
-    const successElement = document.querySelector("span.label.label-success");
-    if (
-      successElement &&
-      successElement.textContent?.includes("Congratulations")
-    ) {
-      this.isSuccessful = true;
-      return true;
-    }
-    this.isSuccessful = false;
-    return false;
   }
 
   /** Handle the success state - clear timers, make editor read-only, show saved code */
