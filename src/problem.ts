@@ -1,8 +1,8 @@
 import { $ } from "./$";
 import { DB } from "./db";
 
-// null => started => waiting => solved
-type State = "SOLVED" | "STARTED" | "WAITING";
+// ready => started => waiting => solved
+type State = "SOLVED" | "STARTED" | "WAITING" | "READY";
 
 // Timelimit after starting a problem
 const fiveMinutesInMs = 5 * 60 * 1000;
@@ -12,9 +12,13 @@ const fiveMinutesInMs = 5 * 60 * 1000;
  * dictate the current state and conditions of the problem
  */
 export class Problem {
-  private state: State | null = null;
+  private state: State = "READY";
 
   constructor() {
+    this.tick();
+  }
+
+  public tick() {
     const success = $().byQuery("span.label.label-success");
     if (success && success.textContent.includes("Congratulations")) {
       this.state = "SOLVED";
@@ -27,14 +31,33 @@ export class Problem {
       return;
     }
 
-    const startTimestamp = DB.get<number>(["START_TIMESTAMP"]);
-    const now = Date.now();
-    if (startTimestamp) {
-      if (now - startTimestamp < fiveMinutesInMs) {
-        this.state = "STARTED";
-        return;
-      }
+    if (this.remainingSeconds > 0) {
+      this.state = "STARTED";
+      return;
     }
+
+    this.state = "READY";
+  }
+
+  /** Start the problem */
+  start() {
+    DB.save(["START_TIMESTAMP"], Date.now());
+    this.state = "STARTED";
+  }
+
+  reset() {
+    DB.save(["START_TIMESTAMP"], null);
+  }
+
+  /** Check how much time is left */
+  get remainingSeconds() {
+    const startTimestamp = DB.get<number>(["START_TIMESTAMP"]);
+    if (!startTimestamp) return 0;
+
+    const now = Date.now();
+    const elapsedMs = Date.now() - startTimestamp;
+    const remainingMs = fiveMinutesInMs - elapsedMs;
+    return Math.max(0, Math.floor(remainingMs / 1000));
   }
 
   get isSolved() {
@@ -47,5 +70,9 @@ export class Problem {
 
   get isWaiting() {
     return this.state === "WAITING";
+  }
+
+  get isReady() {
+    return this.state === "READY";
   }
 }

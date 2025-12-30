@@ -1,3 +1,8 @@
+import { ClearBtn } from "./elements/clear";
+import { RunBtn } from "./elements/run";
+import { StartBtn } from "./elements/start";
+import { SubmitBtn } from "./elements/submit";
+
 export interface PyodideInterface {
   runPython: (code: string) => string;
   runPythonAsync: (code: string) => Promise<unknown>;
@@ -22,18 +27,16 @@ export interface CodeMirrorSetup {
 export type Language = "python" | "javascript";
 
 export interface EditorElements {
-  runBtn: HTMLButtonElement;
-  clearBtn: HTMLButtonElement;
-  submitBtn: HTMLButtonElement;
+  runBtn: RunBtn;
+  clearBtn: ClearBtn;
+  submitBtn: SubmitBtn;
+  startBtn: StartBtn;
   languageSelector: HTMLSelectElement;
   codeInput: HTMLElement;
   output: HTMLElement;
   status: HTMLElement;
   timer: HTMLElement;
   timerText: HTMLElement;
-  resizer: HTMLElement;
-  replPanel: HTMLElement;
-  updateResizerPosition: () => void;
 }
 
 export type StatusState = "loading" | "ready" | "error";

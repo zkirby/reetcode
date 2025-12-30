@@ -1,4 +1,5 @@
 import { Language, PyodideInterface, WindowWithExtensions } from "../types";
+import { codonTable } from "./consts";
 import { Runner } from "./runner";
 
 /**
@@ -12,83 +13,40 @@ export class PythonRunner implements Runner {
   private pyodide: PyodideInterface | null = null;
 
   async init(dataset: string) {
-    if (this.initialized) {
-      this.pyodide!.globals.set("dataset", dataset);
-      // Update codon table if already initialized
-      this.pyodide!.runPython(`
-codon_table = {
-    "TTT": "F", "TTC": "F", "TTA": "L", "TTG": "L",
-    "CTT": "L", "CTC": "L", "CTA": "L", "CTG": "L",
-    "ATT": "I", "ATC": "I", "ATA": "I", "ATG": "M",
-    "GTT": "V", "GTC": "V", "GTA": "V", "GTG": "V",
-    "TCT": "S", "TCC": "S", "TCA": "S", "TCG": "S",
-    "CCT": "P", "CCC": "P", "CCA": "P", "CCG": "P",
-    "ACT": "T", "ACC": "T", "ACA": "T", "ACG": "T",
-    "GCT": "A", "GCC": "A", "GCA": "A", "GCG": "A",
-    "TAT": "Y", "TAC": "Y", "TAA": "Stop", "TAG": "Stop",
-    "CAT": "H", "CAC": "H", "CAA": "Q", "CAG": "Q",
-    "AAT": "N", "AAC": "N", "AAA": "K", "AAG": "K",
-    "GAT": "D", "GAC": "D", "GAA": "E", "GAG": "E",
-    "TGT": "C", "TGC": "C", "TGA": "Stop", "TGG": "W",
-    "CGT": "R", "CGC": "R", "CGA": "R", "CGG": "R",
-    "AGT": "S", "AGC": "S", "AGA": "R", "AGG": "R",
-    "GGT": "G", "GGC": "G", "GGA": "G", "GGG": "G"
-}
-      `);
-      return;
-    }
+    if (!this.initialized) {
+      await new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = "https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js";
+        script.onload = () => resolve(null);
+        script.onerror = reject;
+        document.head.appendChild(script);
+      });
 
-    await new Promise((resolve, reject) => {
-      const script = document.createElement("script");
-      script.src = "https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js";
-      script.onload = () => resolve(null);
-      script.onerror = reject;
-      document.head.appendChild(script);
-    });
+      const win = window as WindowWithExtensions;
 
-    const win = window as WindowWithExtensions;
+      if (!win.loadPyodide) {
+        throw new Error("Pyodide loader not found");
+      }
 
-    if (!win.loadPyodide) {
-      throw new Error("Pyodide loader not found");
-    }
+      this.pyodide = await win.loadPyodide({
+        indexURL: "https://cdn.jsdelivr.net/pyodide/v0.24.1/full/",
+      });
 
-    this.pyodide = await win.loadPyodide({
-      indexURL: "https://cdn.jsdelivr.net/pyodide/v0.24.1/full/",
-    });
+      if (this.pyodide == null) {
+        throw new Error("Failed to initialize Pyodide");
+      }
 
-    if (this.pyodide == null) {
-      throw new Error("Failed to initialize Pyodide");
-    }
-
-    this.pyodide.runPython(`
+      this.pyodide.runPython(`
   import sys
   import io
   sys.stdout = io.StringIO()
   sys.stderr = io.StringIO()
       `);
+    }
 
-    this.pyodide.globals.set("dataset", dataset);
-
-    // DNA codon table
-    this.pyodide.runPython(`
-codon_table = {
-    "TTT": "F", "TTC": "F", "TTA": "L", "TTG": "L",
-    "CTT": "L", "CTC": "L", "CTA": "L", "CTG": "L",
-    "ATT": "I", "ATC": "I", "ATA": "I", "ATG": "M",
-    "GTT": "V", "GTC": "V", "GTA": "V", "GTG": "V",
-    "TCT": "S", "TCC": "S", "TCA": "S", "TCG": "S",
-    "CCT": "P", "CCC": "P", "CCA": "P", "CCG": "P",
-    "ACT": "T", "ACC": "T", "ACA": "T", "ACG": "T",
-    "GCT": "A", "GCC": "A", "GCA": "A", "GCG": "A",
-    "TAT": "Y", "TAC": "Y", "TAA": "Stop", "TAG": "Stop",
-    "CAT": "H", "CAC": "H", "CAA": "Q", "CAG": "Q",
-    "AAT": "N", "AAC": "N", "AAA": "K", "AAG": "K",
-    "GAT": "D", "GAC": "D", "GAA": "E", "GAG": "E",
-    "TGT": "C", "TGC": "C", "TGA": "Stop", "TGG": "W",
-    "CGT": "R", "CGC": "R", "CGA": "R", "CGG": "R",
-    "AGT": "S", "AGC": "S", "AGA": "R", "AGG": "R",
-    "GGT": "G", "GGC": "G", "GGA": "G", "GGG": "G"
-}
+    this.pyodide!.globals.set("dataset", dataset);
+    this.pyodide!.runPython(`
+codon_table = ${JSON.stringify(codonTable)}
       `);
 
     this.initialized = true;

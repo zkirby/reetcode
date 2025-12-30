@@ -1,5 +1,7 @@
 import { $, $$ } from "./$";
 import { DB } from "./db";
+import { EditorOverlay } from "./elements/editorOverlay";
+import { Problem } from "./problem";
 import { JavaScriptRunner } from "./runners/javascript";
 import { PythonRunner } from "./runners/python";
 import { Runner } from "./runners/runner";
@@ -23,20 +25,18 @@ const TextToState: Record<StatusState, string> = {
 export class Editor {
   private view: any; // EditorView from CodeMirror
   private dataset: string = "";
-  private datasetUrl: string = "";
-  private started: boolean = false;
   private _runnerCache: Record<Language, Runner> = {
     python: new PythonRunner(),
     javascript: new JavaScriptRunner(),
   };
-  private btn: any = null;
   private timerInterval: number | null = null;
-  private remainingSeconds: number = 300;
-  private loadingOverlay: HTMLElement | null = null;
-  private submitCooldownInterval: number | null = null;
-  private isSuccessful: boolean = false;
+  private overlay!: EditorOverlay;
 
-  constructor(private elements: EditorElements) {}
+  constructor(
+    private elements: EditorElements,
+    private problem: Problem,
+    private datasetUrl: string
+  ) {}
 
   async init(): Promise<void> {
     try {
@@ -71,21 +71,17 @@ export class Editor {
         const target = e.target as HTMLSelectElement;
         this.language = target.value as Language;
       });
-      // reset the editor with the new language
-      this.reset();
 
-      // Set up cntrl buttons
-      const { runBtn, clearBtn, submitBtn } = this.elements;
+      // Set up control buttons
+      const { runBtn, clearBtn, submitBtn, startBtn } = this.elements;
       const brun = this.run.bind(this);
       const bclear = this.clear.bind(this);
-      runBtn.addEventListener("click", brun);
-      clearBtn.addEventListener("click", bclear);
-      submitBtn.addEventListener("click", this.submit.bind(this));
+      runBtn.element.addEventListener("click", brun);
+      clearBtn.element.addEventListener("click", bclear);
+      submitBtn.element.addEventListener("click", this.submit.bind(this));
+      startBtn.element.addEventListener("click", this.start.bind(this));
 
-      // Initialize submit cooldown check (only if not already successful)
-      if (!this.canSubmit()) {
-        this.startSubmitCooldownCheck();
-      }
+      this.overlay = new EditorOverlay(this.elements.codeInput.parentElement!);
 
       // Hotkeys
       const keymap: Record<string, () => void> = {
@@ -101,16 +97,21 @@ export class Editor {
         }
       });
 
-      // If successful, handle success state
-      if (this.isSuccessful) {
-        // Mark as started so editor shows code instead of placeholder
-        this.started = true;
-        // Don't load dataset for already solved problems
-        // Handle success (non-blocking)
-        this.handleSuccess().catch((error) => {
-          console.error("Error handling success state:", error);
-        });
+      // Initialize the editor
+      if (this.problem.isSolved) {
+        this.solved();
+        return;
+      } else if (this.problem.isWaiting) {
+        this.wait();
+        return;
+      } else if (this.problem.isStarted) {
+        // Auto-start if already started
+        this.start();
+        return;
       }
+
+      // Default state
+      this.setEditor(null, false);
     } catch (e) {
       console.error(e);
       this.status = "error";
@@ -124,7 +125,6 @@ export class Editor {
   }
 
   set content(text: string) {
-    if (!this.view) throw new Error("Editor not initialized");
     this.view.dispatch({
       changes: {
         from: 0,
@@ -168,8 +168,8 @@ export class Editor {
       this.addOutput("Editor hasn't finished loading yet...", "error");
       return;
     }
-    if (!this.canSubmit()) {
-      this.addOutput("Please wait before running again.", "error");
+    if (!this.problem.isStarted) {
+      this.addOutput("Please start before running.", "error");
       return;
     }
     const code = this.content;
@@ -179,8 +179,7 @@ export class Editor {
     }
 
     const { runBtn } = this.elements;
-    runBtn.disabled = true;
-    runBtn.textContent = "Running...";
+    runBtn.loading();
 
     try {
       for await (const { type, text } of runner.run(code)) {
@@ -191,78 +190,56 @@ export class Editor {
         `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
         "error"
       );
-      return;
-    } finally {
-      runBtn.disabled = false;
-      runBtn.textContent = "Run Code";
     }
+
+    runBtn.enable();
   }
 
   /** Start the problem in the editor */
-  async start(dataset: string, datasetUrl: string, btn: HTMLButtonElement) {
-    this.dataset = dataset;
-    this.started = true;
-    this.datasetUrl = datasetUrl;
-    this.btn = btn;
+  async start() {
+    const { runBtn, submitBtn, startBtn } = this.elements;
+    startBtn.loading();
+
+    if (!this.dataset) {
+      const response = await fetch(this.datasetUrl);
+      this.dataset = await response.text();
+    }
+
+    DB.save(["START_TIMESTAMP"], Date.now());
+    this.startTimer();
 
     await this.reset();
 
     this.addOutput("✓ Dataset loaded! Ready to analyze.", null);
 
-    const { runBtn, submitBtn } = this.elements;
-    runBtn.disabled = false;
-    submitBtn.disabled = false;
-    btn.textContent = "start ▶︎";
-
-    // Start the timer
-    if (this.canSubmit()) {
-      this.startTimer(btn);
-    }
+    runBtn.enable();
+    submitBtn.enable();
+    startBtn.disable();
   }
 
   /** Start the 5-minute countdown timer */
-  private startTimer(btn: HTMLButtonElement) {
+  private startTimer() {
     this.stopTimer();
 
-    const startTimestamp = DB.get<number>(["START_TIMESTAMP"]);
-    const fiveMinutesInMs = 5 * 60 * 1000;
-    const now = Date.now();
-
-    if (startTimestamp && now - startTimestamp < fiveMinutesInMs) {
-      const elapsedMs = now - startTimestamp;
-      const remainingMs = fiveMinutesInMs - elapsedMs;
-      this.remainingSeconds = Math.max(0, Math.floor(remainingMs / 1000));
-    } else {
-      this.remainingSeconds = 300;
-      if (!startTimestamp || now - startTimestamp >= fiveMinutesInMs) {
-        DB.save(["START_TIMESTAMP"], now);
-      }
-    }
-
-    const { timer, submitBtn, runBtn } = this.elements;
+    const { timer, submitBtn, runBtn, startBtn } = this.elements;
     timer.style.display = "flex";
 
     this.updateTimerDisplay();
 
     this.timerInterval = window.setInterval(() => {
-      this.remainingSeconds--;
       this.updateTimerDisplay();
 
-      if (this.remainingSeconds <= 0) {
+      if (this.problem.remainingSeconds <= 0) {
         this.stopTimer();
         this.addOutput(
           "⏰ Time's up! Please 'start ▶︎' to try again.",
           "error"
         );
-        btn.disabled = false;
-        btn.style.opacity = "1";
-        btn.style.backgroundColor = "#10b981";
 
-        submitBtn.disabled = true;
-        runBtn.disabled = true;
-
-        // Clear the timestamp when time expires
-        DB.save(["START_TIMESTAMP"], null);
+        startBtn.enable();
+        submitBtn.disable();
+        runBtn.disable();
+        this.problem.reset();
       }
     }, 1000);
   }
@@ -280,106 +257,28 @@ export class Editor {
   /** Update the timer display text */
   private updateTimerDisplay() {
     const { timerText } = this.elements;
-    const minutes = Math.floor(this.remainingSeconds / 60);
-    const seconds = this.remainingSeconds % 60;
+    const minutes = Math.floor(this.problem.remainingSeconds / 60);
+    const seconds = this.problem.remainingSeconds % 60;
     timerText.textContent = `${minutes}:${seconds.toString().padStart(2, "0")}`;
   }
 
-  /** Show loading overlay in the editor pane */
-  private showLoadingOverlay() {
-    if (this.loadingOverlay) return;
-
-    const overlay = $$.DIV({
-      id: "rosalind-editor-loading-overlay",
-      css: `
-        position: absolute;
-        inset: 0;
-        z-index: 1000;
-        background: rgba(255, 255, 255, 0.95);
-        backdrop-filter: blur(2px);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: #1a1a1a;
-        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-      `,
-    });
-
-    const card = $$.DIV({
-      css: `
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 10px;
-        padding: 18px 20px;
-        border-radius: 14px;
-        background: rgba(255, 255, 255, 0.98);
-        border: 1px solid rgba(0, 0, 0, 0.1);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-      `,
-    });
-
-    const spinner = $$.DIV({
-      css: `
-        width: 28px;
-        height: 28px;
-        border-radius: 999px;
-        border: 3px solid rgba(0, 0, 0, 0.1);
-        border-top-color: #0e639c;
-        animation: rosalindEditorSpin 0.8s linear infinite;
-      `,
-    });
-
-    const title = $$.DIV({
-      content: "Loading language runtime...",
-      css: `
-        font-size: 13px;
-        font-weight: 500;
-        color: #1a1a1a;
-      `,
-    });
-
-    card.append(spinner);
-    card.append(title);
-    overlay.append(card);
-
-    // Add animation if not already present
-    if (!$$.byId("rosalind-editor-spinner-style")) {
-      const style = document.createElement("style");
-      style.id = "rosalind-editor-spinner-style";
-      style.textContent = `
-        @keyframes rosalindEditorSpin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-      `;
-      document.head.appendChild(style);
-    }
-
-    const editorContainer = this.elements.codeInput.parentElement;
-    if (editorContainer) {
-      editorContainer.style.position = "relative";
-      editorContainer.appendChild(overlay.el);
-      this.loadingOverlay = overlay.el;
-    }
-  }
-
-  /** Hide loading overlay in the editor pane */
-  private hideLoadingOverlay() {
-    if (this.loadingOverlay) {
-      this.loadingOverlay.remove();
-      this.loadingOverlay = null;
-    }
-  }
-
-  /** reset the editor after a language change */
+  /** reset the editor */
   private async reset() {
-    this.status = "loading";
-
-    const needsInit = !this.runner.initialized;
-    if (needsInit) {
-      this.showLoadingOverlay();
+    if (!this.runner.initialized) {
+      this.overlay.show();
     }
+
+    await this.initRunner();
+
+    const code = DB.get<string>(["CODE", this.language]);
+    const doc = code ?? this.runner.getSkeleton();
+    this.setEditor(doc, false);
+
+    this.overlay.hide();
+  }
+
+  private async setEditor(doc?: string | null, editable?: boolean) {
+    this.status = "loading";
 
     try {
       const win = window as WindowWithExtensions;
@@ -402,51 +301,22 @@ export class Editor {
         javascript,
       };
 
-      // If started, prefer (1) saved code for that language, otherwise (2) skeleton for that language.
-      // If not started, show the default placeholder.
-      const savedCode = DB.get<string>(["CODE", this.language]);
-
-      // Create update listener to save code on changes (only if not successful)
       const saveOnUpdate = EditorView.updateListener.of((update: any) => {
-        if (update.docChanged && !this.isSuccessful) {
+        if (update.docChanged) {
           const code = update.state.doc.toString();
           DB.save(["CODE", this.language], code);
         }
       });
 
-      // Initialize the new runner if needed
-      await this.initRunner();
-      this.hideLoadingOverlay();
-
-      // Determine what document to show
-      let docToUse: string;
-      if (this.isSuccessful) {
-        // If successful, only show saved code if it exists, otherwise show default placeholder
-        docToUse =
-          savedCode && typeof savedCode === "string"
-            ? savedCode
-            : defaultDocs[this.language];
-      } else if (this.started && this.runner.initialized) {
-        // If started normally, prefer saved code, otherwise use skeleton
-        docToUse =
-          savedCode && typeof savedCode === "string"
-            ? savedCode
-            : this.runner.getSkeleton();
-      } else {
-        // Not started, show default placeholder
-        docToUse = defaultDocs[this.language];
-      }
-
       // Reset the view
       this.view = new EditorView({
-        doc: docToUse,
+        doc: doc ?? defaultDocs[this.language],
         extensions: [
           extension[this.language](),
           indentUnit.of("    "),
           basicSetup,
           saveOnUpdate,
-          // Make editor editable only if started and not successful
-          EditorView.editable.of(this.started && !this.isSuccessful),
+          EditorView.editable.of(editable ?? true),
           EditorView.theme({
             "&": {
               height: "100%",
@@ -462,13 +332,11 @@ export class Editor {
     } catch (e) {
       console.error(e);
       this.status = "error";
-      this.hideLoadingOverlay();
       return;
     }
     this.status = "ready";
   }
 
-  /** Update the editors status */
   set status(state: StatusState) {
     const { status } = this.elements;
     status.className = state;
@@ -485,7 +353,7 @@ export class Editor {
         : type === "success"
         ? "rosalind-output-success"
         : "",
-    ].filter((cls) => cls !== ""); // Filter out empty strings
+    ].filter((cls) => cls !== "");
     const line = $$.DIV({
       content: text,
       classList,
@@ -533,61 +401,7 @@ export class Editor {
     return outputLines.join("\n").trim();
   }
 
-  /** Update the submit button state based on presence of "Please wait" element */
-  private async updateSubmitButtonState(): Promise<void> {
-    const { submitBtn, runBtn } = this.elements;
-
-    // If problem is already successful, button should be disabled (handled in handleSuccess)
-    if (this.isSuccessful) {
-      return;
-    }
-
-    const canSubmit = this.canSubmit();
-
-    if (canSubmit) {
-      submitBtn.disabled = false;
-      submitBtn.textContent = "Submit Output";
-
-      const response = await fetch(this.datasetUrl);
-      this.dataset = await response.text();
-      this.start(this.dataset, this.datasetUrl, this.btn);
-
-      this.stopSubmitCooldownCheck();
-    } else {
-      submitBtn.disabled = true;
-      submitBtn.textContent = "Submit (Blocked)";
-      runBtn.disabled = true;
-      this.btn.disabled = true;
-      this.clear();
-      this.addOutput("Please wait before re-submitting again.");
-    }
-  }
-
-  /** Start periodic check for submit cooldown */
-  private startSubmitCooldownCheck(): void {
-    this.stopSubmitCooldownCheck();
-    this.updateSubmitButtonState();
-
-    this.submitCooldownInterval = window.setInterval(() => {
-      this.updateSubmitButtonState();
-    }, 1000);
-  }
-
-  /** Stop the submit cooldown check interval */
-  private stopSubmitCooldownCheck(): void {
-    if (this.submitCooldownInterval !== null) {
-      clearInterval(this.submitCooldownInterval);
-      this.submitCooldownInterval = null;
-    }
-  }
-
   submit() {
-    // Check cooldown before allowing submission
-    if (!this.canSubmit()) {
-      this.addOutput("Please wait before submitting again.", "error");
-      return;
-    }
-
     const output = this.getLastOutput();
     if (!output) {
       this.addOutput("No output to submit. Run your code first.", "error");
@@ -602,12 +416,6 @@ export class Editor {
         throw new Error("Submission form or file input not found");
       }
 
-      // Reset start timestamp
-      DB.save(["START_TIMESTAMP"], null);
-
-      // Stop the top-level timer after submission
-      this.stopTimer();
-
       // Create a File object from the output string
       const blob = new Blob([output], { type: "text/plain" });
       const file = new File([blob], "output.txt", { type: "text/plain" });
@@ -619,6 +427,10 @@ export class Editor {
 
       // Submit the form
       form.submit();
+      this.problem.reset();
+      // Stop the top-level timer after submission
+      this.stopTimer();
+
       this.addOutput("✓ Output submitted successfully!", null);
     } catch (error) {
       this.addOutput(
@@ -630,29 +442,43 @@ export class Editor {
     }
   }
 
-  /** Handle the success state - clear timers, make editor read-only, show saved code */
-  async handleSuccess(): Promise<void> {
-    // Clear all timers
-    this.stopTimer();
-    this.stopSubmitCooldownCheck();
+  private solved() {
+    this.elements.languageSelector.disabled = true;
+    this.elements.startBtn.disable();
 
-    // Disable all buttons
-    const { runBtn, submitBtn, clearBtn, languageSelector } = this.elements;
-    runBtn.disabled = true;
-    submitBtn.disabled = true;
-    clearBtn.disabled = true;
+    const doc = DB.get<string>(["CODE", this.language]);
+    this.setEditor(doc, false);
+
+    this.addOutput(
+      "🏆 Problem solved! The editor is in read-only mode.",
+      "success"
+    );
+  }
+
+  private wait() {
+    const { languageSelector, submitBtn, startBtn, runBtn } = this.elements;
     languageSelector.disabled = true;
+    startBtn.disable();
+    this.addOutput("Please wait before re-submitting again.");
 
-    // Load and display the submitted code if available
-    const savedCode = DB.get<string>(["CODE", this.language]);
-    if (this.view) {
-      await this.reset();
-    }
+    const doc = DB.get<string>(["CODE", this.language]);
+    this.setEditor(doc, false);
 
-    // Show solved message in output with trophy emoji
-    const message = savedCode
-      ? "🏆 Problem solved! The editor is in read-only mode."
-      : "🏆 Problem solved!";
-    this.addOutput(message, "success");
+    const checkEnabledTimer = window.setInterval(async () => {
+      // Keep checking until the state changes
+      this.problem.tick();
+
+      if (this.problem.isReady) {
+        languageSelector.disabled = false;
+        startBtn.enable();
+        runBtn.enable();
+        submitBtn.enable();
+
+        clearInterval(checkEnabledTimer);
+
+        this.clear();
+        this.setEditor(null, true);
+      }
+    }, 1000);
   }
 }

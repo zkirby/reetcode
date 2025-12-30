@@ -5,8 +5,11 @@ import EXPLAIN_SVG from "./icons/explain-icon.svg";
 import { $, $$, QueryWrapper } from "./$";
 import { EditorElements } from "./types";
 import { DB } from "./db";
-import { StartBtn } from "./controls/start";
+import { StartBtn } from "./elements/start";
 import { Problem } from "./problem";
+import { runBtn, RunBtn } from "./elements/run";
+import { clearBtn } from "./elements/clear";
+import { submitBtn } from "./elements/submit";
 
 export function createLoadingOverlay(opts: { title?: string }) {
   const overlay = $$.DIV({
@@ -79,7 +82,12 @@ export function createLoadingOverlay(opts: { title?: string }) {
   };
 }
 
-export function createSplitLayout(): EditorElements {
+export function createSplitLayout(): {
+  editorElements: Omit<EditorElements, "startBtn">;
+  resizer: HTMLElement;
+  replPanel: HTMLElement;
+  updateResizerPosition: () => void;
+} {
   const rosalindFooter = $().byQuery(".footer", true);
 
   const splitContainer = $$.DIV({ id: "rosalind-split-container" });
@@ -153,16 +161,19 @@ export function createSplitLayout(): EditorElements {
 
   updateResizerPosition();
 
-  return {
-    runBtn: $$.byId<HTMLButtonElement>("rosalind-run-btn"),
-    clearBtn: $$.byId<HTMLButtonElement>("rosalind-clear-btn"),
-    submitBtn: $$.byId<HTMLButtonElement>("rosalind-submit-btn"),
+  const editorElements = {
+    runBtn,
+    clearBtn,
+    submitBtn,
     languageSelector: $$.byId<HTMLSelectElement>("rosalind-language-selector"),
     codeInput: $$.byId<HTMLElement>("rosalind-code-input"),
     output: $$.byId<HTMLElement>("rosalind-repl-output"),
     status: $$.byId<HTMLElement>("rosalind-repl-status"),
     timer: $$.byId<HTMLElement>("rosalind-timer"),
     timerText: $$.byId<HTMLElement>("rosalind-timer-text"),
+  };
+  return {
+    editorElements,
     resizer,
     replPanel,
     updateResizerPosition,

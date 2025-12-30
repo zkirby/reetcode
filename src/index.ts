@@ -40,57 +40,24 @@ const EXCLUDED_PAGE_SUFFIXES = ["subs/recent/", "questions/", "explanation/"];
     title: "Loading…",
   });
 
-  const elements = createSplitLayout();
-  setupResizer(
-    elements.resizer,
-    elements.replPanel,
-    elements.updateResizerPosition
-  );
+  const { editorElements, replPanel, resizer, updateResizerPosition } =
+    createSplitLayout();
+  setupResizer(resizer, replPanel, updateResizerPosition);
 
-  const editor = new Editor(elements);
   const problem = new Problem();
+  const startBtn = addStartButton(problem);
+  const datasetUrl = await getDatasetDownloadLink();
+
+  const editor = new Editor(
+    { ...editorElements, startBtn },
+    problem,
+    datasetUrl
+  );
 
   try {
     await editor.init();
 
     mj.switchToSvg();
-
-    const datasetUrl = await getDatasetDownloadLink();
-    const startBtn = addStartButton(problem);
-
-    const onStart = async () => {
-      startBtn.loading();
-      let dataset = "";
-
-      try {
-        // DatasetUrl isn't made available by server while the
-        // problem is in the "waiting" state.
-        if (!problem.isWaiting) {
-          const response = await fetch(datasetUrl);
-          dataset = await response.text();
-        }
-
-        editor.start(dataset, datasetUrl, startBtn);
-      } catch (error) {
-        editor.addOutput(
-          `Error loading dataset: ${
-            error instanceof Error ? error.message : "Unknown error"
-          }`,
-          "error"
-        );
-        startBtn.enable();
-      }
-    };
-
-    startBtn.element.addEventListener("click", async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-
-      onStart();
-    });
-
-    // If the problem was already started, auto-start it.
-    if (problem.isStarted || problem.isWaiting) onStart();
 
     console.log("Rosalind LeetCode Style with Python REPL loaded!");
   } catch (error) {
