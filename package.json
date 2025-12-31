@@ -1,6 +1,6 @@
 {
   "name": "reetcode",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Adds leetcode style in-browser editor to Rosalind",
   "private": false,
   "type": "module",
