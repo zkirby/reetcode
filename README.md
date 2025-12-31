@@ -6,7 +6,7 @@ Adds a <a href="https://leetcode.com/">Leetcode</a> style in-browser editor to <
 </div>
 
 ## Features
-* Provides Python (via [Pyodide](https://pyodide.org/en/stable/)) or Javascript langauge support.
+* Provides Python (via [Pyodide](https://pyodide.org/en/stable/)) or Javascript language support.
 * Run and submit solutions without needing to download dataset/upload solution.
 * Provides relevant globals like `dataset` and `codonTable`.
 * Aesthetic cleanup and improved UX.
@@ -18,4 +18,4 @@ Adds a <a href="https://leetcode.com/">Leetcode</a> style in-browser editor to <
 npx reetcode
 ```
 
-**Step 2:** Paste into new [Tampermonkey](https://www.tampermonkey.net/) (or equavlent) script.
+**Step 2:** Paste into new [Tampermonkey](https://www.tampermonkey.net/) (or equivalent) script.
