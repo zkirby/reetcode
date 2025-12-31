@@ -41,7 +41,9 @@ export class Problem {
 
   /** Start the problem */
   start() {
-    DB.save(["START_TIMESTAMP"], Date.now());
+    if (this.remainingSeconds <= 0) {
+      DB.save(["START_TIMESTAMP"], Date.now());
+    }
     this.state = "STARTED";
   }
 
@@ -55,7 +57,7 @@ export class Problem {
     if (!startTimestamp) return 0;
 
     const now = Date.now();
-    const elapsedMs = Date.now() - startTimestamp;
+    const elapsedMs = now - startTimestamp;
     const remainingMs = fiveMinutesInMs - elapsedMs;
     return Math.max(0, Math.floor(remainingMs / 1000));
   }

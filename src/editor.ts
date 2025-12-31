@@ -126,7 +126,12 @@ export class Editor {
 
   set language(language: Language) {
     DB.save(["LANGUAGE_PREFERENCE"], language);
-    this.reset();
+
+    if (this.problem.isStarted) {
+      this.reset();
+    } else {
+      this.setEditor(null, false);
+    }
   }
 
   private async initRunner() {
@@ -183,7 +188,7 @@ export class Editor {
 
   /** Start the problem in the editor */
   async start() {
-    const { runBtn, submitBtn, startBtn } = this.elements;
+    const { runBtn, submitBtn, startBtn, clearBtn } = this.elements;
     startBtn.loading();
 
     if (!this.dataset) {
@@ -191,7 +196,6 @@ export class Editor {
       this.dataset = await response.text();
     }
 
-    DB.save(["START_TIMESTAMP"], Date.now());
     this.startTimer();
 
     await this.reset();
@@ -200,12 +204,14 @@ export class Editor {
 
     runBtn.enable();
     submitBtn.enable();
+    clearBtn.enable();
     startBtn.disable();
   }
 
   /** Start the 5-minute countdown timer */
   private startTimer() {
     this.stopTimer();
+    this.problem.start();
 
     const { timer, submitBtn, runBtn, startBtn } = this.elements;
     timer.style.display = "flex";
@@ -214,6 +220,7 @@ export class Editor {
 
     this.timerInterval = window.setInterval(() => {
       this.updateTimerDisplay();
+      this.problem.tick();
 
       if (this.problem.remainingSeconds <= 0) {
         this.stopTimer();
@@ -258,7 +265,7 @@ export class Editor {
 
     const code = DB.get<string>(["CODE", this.language]);
     const doc = code ?? this.runner.getSkeleton();
-    this.setEditor(doc, false);
+    this.setEditor(doc, true);
 
     this.overlay.hide();
   }

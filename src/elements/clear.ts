@@ -14,6 +14,3 @@ export class ClearBtn implements ControlBtn {
   loading() {}
   disable() {}
 }
-
-// Single ton
-export const clearBtn = new ClearBtn();

@@ -14,6 +14,3 @@ export class SubmitBtn implements ControlBtn {
   loading() {}
   disable() {}
 }
-
-// Single ton
-export const submitBtn = new SubmitBtn();

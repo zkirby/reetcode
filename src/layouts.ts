@@ -7,9 +7,9 @@ import { EditorElements } from "./types";
 import { DB } from "./db";
 import { StartBtn } from "./elements/start";
 import { Problem } from "./problem";
-import { runBtn, RunBtn } from "./elements/run";
-import { clearBtn } from "./elements/clear";
-import { submitBtn } from "./elements/submit";
+import { RunBtn } from "./elements/run";
+import { ClearBtn } from "./elements/clear";
+import { SubmitBtn } from "./elements/submit";
 
 export function createLoadingOverlay(opts: { title?: string }) {
   const overlay = $$.DIV({
@@ -138,7 +138,7 @@ export function createSplitLayout(): {
       </div>
       <div id="rosalind-repl-controls">
         <button id="rosalind-run-btn" disabled>Run Code</button>
-        <button id="rosalind-clear-btn">Clear Output</button>
+        <button id="rosalind-clear-btn" disabled>Clear Output</button>
         <button id="rosalind-submit-btn" disabled>Submit Output</button>
       </div>
       <div id="rosalind-repl-output"></div>
@@ -162,9 +162,9 @@ export function createSplitLayout(): {
   updateResizerPosition();
 
   const editorElements = {
-    runBtn,
-    clearBtn,
-    submitBtn,
+    runBtn: new RunBtn(),
+    clearBtn: new ClearBtn(),
+    submitBtn: new SubmitBtn(),
     languageSelector: $$.byId<HTMLSelectElement>("rosalind-language-selector"),
     codeInput: $$.byId<HTMLElement>("rosalind-code-input"),
     output: $$.byId<HTMLElement>("rosalind-repl-output"),

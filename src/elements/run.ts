@@ -20,6 +20,3 @@ export class RunBtn implements ControlBtn {
     this.element.disabled = true;
   }
 }
-
-// Single ton
-export const runBtn = new RunBtn();
